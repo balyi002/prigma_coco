@@ -9,7 +9,8 @@ import {
   CheckCircle2,
   Printer,
   CreditCard,
-  Banknote
+  Banknote,
+  BookmarkCheck
 } from 'lucide-react';
 import { orderService } from '../services/orderService';
 import { formatCOP, printTicket } from '../../../utils/format';
@@ -561,13 +562,14 @@ export default function POSView({ onBackToOrders, currentUser }) {
             </div>
           </div>
 
-          {/* Tipo de Operación / Estado (Solo Completado o Pendiente) */}
+          {/* Tipo de Operación / Estado (Completado, Pendiente o Apartado) */}
           <div className="space-y-1.5">
             <label className="font-bold text-foreground block">Tipo de Operación</label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               {[
-                { id: 'Completado', label: 'Venta Directa', desc: 'Pasa al módulo de Ventas' },
-                { id: 'Pendiente', label: 'Pedido Pendiente', desc: 'Queda en Pedidos para agregar más o completar' },
+                { id: 'Completado', label: 'Venta Directa', desc: 'Pago total, pasa a Ventas' },
+                { id: 'Pendiente', label: 'Pedido Pendiente', desc: 'Abierto para completar luego' },
+                { id: 'Apartado', label: 'Apartado', desc: 'Reserva con abono (Plan Separe)' },
               ].map((op) => (
                 <button
                   type="button"
@@ -575,28 +577,43 @@ export default function POSView({ onBackToOrders, currentUser }) {
                   onClick={() => {
                     setOrderStatus(op.id);
                     if (op.id === 'Completado') setMontoAbono(String(total));
+                    else if (op.id === 'Apartado') setMontoAbono(String(Math.round(total * 0.3)));
+                    else setMontoAbono('0');
                   }}
-                  className={`py-2 px-3 rounded-xl text-left border transition-all cursor-pointer ${
+                  className={`py-2 px-2.5 rounded-xl text-left border transition-all cursor-pointer ${
                     orderStatus === op.id
-                      ? 'bg-primary text-white border-primary shadow-xs'
+                      ? op.id === 'Apartado'
+                        ? 'bg-purple-600 text-white border-purple-600 shadow-xs'
+                        : 'bg-primary text-white border-primary shadow-xs'
                       : 'bg-background border-border text-foreground hover:bg-muted'
                   }`}
                 >
-                  <p className="text-xs font-bold">{op.label}</p>
-                  <p className={`text-[10px] mt-0.5 ${orderStatus === op.id ? 'text-white/80' : 'text-muted-foreground'}`}>
+                  <div className="flex items-center gap-1.5">
+                    {op.id === 'Apartado' && <BookmarkCheck className="w-3.5 h-3.5 flex-shrink-0" />}
+                    <p className="text-xs font-bold leading-tight">{op.label}</p>
+                  </div>
+                  <p className={`text-[10px] mt-0.5 leading-tight ${orderStatus === op.id ? 'text-white/80' : 'text-muted-foreground'}`}>
                     {op.desc}
                   </p>
                 </button>
               ))}
             </div>
-            <p className="text-[11px] text-muted-foreground italic mt-1">
-              * Nota: Para apartados con pago por abonos, dirígete al módulo de <strong>Gestión de Separados</strong>.
-            </p>
+
+            {orderStatus === 'Apartado' && (
+              <div className="bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 text-purple-800 dark:text-purple-300 rounded-xl p-2.5 flex items-start gap-2 text-[11px] leading-relaxed animate-in fade-in">
+                <BookmarkCheck className="w-4 h-4 flex-shrink-0 text-purple-600 dark:text-purple-400 mt-0.5" />
+                <span>
+                  <strong>Apartado de Mercancía:</strong> El inventario se descontará y reservará automáticamente en la base de datos (<code className="font-mono">trg_dpp_ai</code>). Podrás registrar abonos en Pedidos hasta completar la venta.
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Método de Pago */}
           <div className="space-y-1.5">
-            <label className="font-bold text-foreground block">Método de Pago</label>
+            <label className="font-bold text-foreground block">
+              {orderStatus === 'Apartado' ? 'Método de Pago del Abono' : 'Método de Pago'}
+            </label>
             <div className="grid grid-cols-2 gap-2">
               {[
                 { id: 'Efectivo', icon: Banknote },
@@ -621,9 +638,20 @@ export default function POSView({ onBackToOrders, currentUser }) {
 
           {/* Monto de Pago / Abono */}
           <div className="space-y-1.5">
-            <label className="font-bold text-foreground block">
-              {orderStatus === 'Completado' ? 'Monto Recibido' : 'Monto de Abono Inicial'}
-            </label>
+            <div className="flex items-center justify-between">
+              <label className="font-bold text-foreground block">
+                {orderStatus === 'Completado' 
+                  ? 'Monto Recibido' 
+                  : orderStatus === 'Apartado'
+                  ? 'Monto de Abono Inicial'
+                  : 'Monto Recibido / Anticipo'}
+              </label>
+              {orderStatus === 'Apartado' && (
+                <span className="text-[11px] text-muted-foreground font-mono">
+                  Sugerido 30%: {formatCOP(Math.round(total * 0.3))}
+                </span>
+              )}
+            </div>
             <input
               type="number"
               value={montoAbono}
@@ -632,6 +660,14 @@ export default function POSView({ onBackToOrders, currentUser }) {
               required
               className="w-full px-3.5 py-2.5 bg-input-background border border-border rounded-xl text-sm font-mono font-bold text-foreground outline-none focus:ring-2 focus:ring-ring transition-all"
             />
+            {orderStatus === 'Apartado' && (
+              <div className="flex justify-between text-[11px] font-bold text-purple-700 dark:text-purple-300 pt-0.5">
+                <span>Saldo Pendiente por Liquidar:</span>
+                <span className="font-mono">
+                  {formatCOP(Math.max(0, total - Number(montoAbono || 0)))}
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Resumen Total */}

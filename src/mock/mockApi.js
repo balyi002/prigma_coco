@@ -19,12 +19,35 @@ function loadDatabase() {
     saveDatabase(initial);
     return initial;
   }
-  // Asegurar que todas las colecciones existan
+  // Asegurar sincronización exacta con la estructura de colecciones
   let changed = false;
+  for (const key of Object.keys(loaded)) {
+    if (!(key in initial)) {
+      delete loaded[key];
+      changed = true;
+    }
+  }
   for (const key of Object.keys(initial)) {
     if (!loaded[key]) {
       loaded[key] = initial[key];
       changed = true;
+    }
+  }
+
+  // Sincronizar pedidos iniciales para reflejar estado Apartado
+  if (loaded.pedidos) {
+    const p2 = loaded.pedidos.find((p) => p.id_pedido === 2);
+    if (p2 && p2.nombre_estado === 'Pendiente') {
+      p2.id_estado = 1;
+      p2.nombre_estado = 'Apartado';
+      changed = true;
+    }
+    if (!loaded.pedidos.some((p) => p.id_pedido === 6)) {
+      const p6 = initial.pedidos?.find((p) => p.id_pedido === 6);
+      if (p6) {
+        loaded.pedidos.push(p6);
+        changed = true;
+      }
     }
   }
   if (changed) saveDatabase(loaded);
@@ -804,26 +827,64 @@ export async function mockRequest(method, rawPath, body = null) {
     return ok({ message: 'Estado del pedido actualizado', pedido });
   }
 
-  // Completar pedido pendiente
+  // Completar pedido (pasa a Completado y se liquida saldo)
   const matchPedidoCompletar = path.match(/^\/pedidos\/(\d+)\/completar$/);
   if (matchPedidoCompletar && m === 'PATCH') {
     const id = Number(matchPedidoCompletar[1]);
     const pedido = db.pedidos.find((p) => p.id_pedido === id);
     if (pedido) {
+      const remainingSaldo = Number(pedido.saldo_pendiente ?? (pedido.total - (pedido.abono || 0)));
+      if (!pedido.detalles) pedido.detalles = { productos: [], servicios: [], pagos: [] };
+      if (!pedido.detalles.pagos) pedido.detalles.pagos = [];
+
+      if (remainingSaldo > 0) {
+        pedido.detalles.pagos.push({
+          fecha: new Date().toLocaleDateString('es-CO') + ' ' + new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }),
+          monto: remainingSaldo,
+          metodo: body.metodo_pago || pedido.metodo_pago || 'Efectivo'
+        });
+      }
+
       pedido.id_estado = 4;
       pedido.nombre_estado = 'Completado';
       pedido.saldo_pendiente = 0;
       pedido.abono = pedido.total;
-      if (!pedido.detalles) pedido.detalles = { productos: [], servicios: [], pagos: [] };
-      if (!pedido.detalles.pagos) pedido.detalles.pagos = [];
-      pedido.detalles.pagos.push({
-        fecha: new Date().toLocaleDateString('es-CO') + ' ' + new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }),
-        monto: pedido.total,
-        metodo: body.metodo_pago || pedido.metodo_pago || 'Efectivo'
-      });
       saveDatabase(db);
     }
     return ok({ message: 'Pedido completado con éxito', pedido });
+  }
+
+  // Registrar abono a un pedido (Apartado o Pendiente)
+  const matchPedidoAbono = path.match(/^\/pedidos\/(\d+)\/abonos$/);
+  if (matchPedidoAbono && m === 'POST') {
+    const id = Number(matchPedidoAbono[1]);
+    const pedido = db.pedidos.find((p) => p.id_pedido === id);
+    if (!pedido) {
+      return Promise.reject(new Error('Pedido no encontrado'));
+    }
+    const monto = Number(body.monto) || 0;
+    const metodo = body.metodo || body.metodo_pago || 'Efectivo';
+    if (monto <= 0) {
+      return Promise.reject(new Error('El monto del abono debe ser mayor a cero'));
+    }
+    const saldoActual = Number(pedido.saldo_pendiente ?? (pedido.total - (pedido.abono || 0)));
+    if (monto > saldoActual) {
+      return Promise.reject(new Error('El abono no puede superar el saldo del pedido'));
+    }
+
+    pedido.abono = (Number(pedido.abono) || 0) + monto;
+    pedido.saldo_pendiente = Math.max(0, saldoActual - monto);
+
+    if (!pedido.detalles) pedido.detalles = { productos: [], servicios: [], pagos: [] };
+    if (!pedido.detalles.pagos) pedido.detalles.pagos = [];
+    pedido.detalles.pagos.push({
+      fecha: new Date().toLocaleDateString('es-CO') + ' ' + new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }),
+      monto,
+      metodo
+    });
+
+    saveDatabase(db);
+    return ok({ message: 'Abono registrado con éxito', pedido });
   }
 
   // Añadir productos o servicios a un pedido pendiente existente
@@ -958,10 +1019,15 @@ export async function mockRequest(method, rawPath, body = null) {
     });
 
     const isCompletado = String(estado).toLowerCase() === 'completado' || String(estado).toLowerCase() === 'completo';
+    const isApartado = String(estado).toLowerCase() === 'apartado';
     const totalCalc = total ? Number(total) : [...prods, ...servs].reduce((acc, i) => acc + i.subtotal, 0);
     const abonoIn = isCompletado ? totalCalc : Number(abono || monto_abono || 0);
     const saldoCalc = Math.max(0, totalCalc - abonoIn);
     const pagoFinal = metodo_pago || metodoPago || 'Efectivo';
+
+    // Estados conforme al script SQL: 1: Apartado, 2: Pendiente, 3: Cancelado, 4: Completado
+    const estadoId = isCompletado ? 4 : isApartado ? 1 : 2;
+    const estadoNombre = isCompletado ? 'Completado' : isApartado ? 'Apartado' : 'Pendiente';
 
     const nuevoPedido = {
       id_pedido: newId,
@@ -975,8 +1041,8 @@ export async function mockRequest(method, rawPath, body = null) {
       saldo_pendiente: saldoCalc,
       abono: abonoIn,
       metodo_pago: pagoFinal,
-      id_estado: isCompletado ? 4 : 2,
-      nombre_estado: isCompletado ? 'Completado' : 'Pendiente',
+      id_estado: estadoId,
+      nombre_estado: estadoNombre,
       detalles: {
         productos: prods,
         servicios: servs,
@@ -993,89 +1059,6 @@ export async function mockRequest(method, rawPath, body = null) {
     db.pedidos.unshift(nuevoPedido);
     saveDatabase(db);
     return ok({ ok: true, message: 'Pedido registrado con éxito', id_pedido: newId, pedido: nuevoPedido });
-  }
-
-  // ---------------- GESTIÓN DE SEPARADOS ----------------
-  if (path === '/separados' && m === 'GET') {
-    return ok(db.separados || []);
-  }
-
-  if (path === '/separados' && m === 'POST') {
-    if (!db.separados) db.separados = [];
-    const newIdNum = (db.separados.reduce((max, s) => Math.max(max, s.id_separado || 0), 0) || 0) + 1;
-    const folio = `SEP${String(newIdNum).padStart(3, '0')}`;
-    const { cliente, telefono, documento, id_producto, producto, cantidad = 1, total, abonoInicial = 0, metodoPago = 'Efectivo', fechaLimite, notas } = body;
-
-    const cantNum = Number(cantidad) || 1;
-    // Si viene id_producto, descontar del stock físico para apartarlo
-    if (id_producto) {
-      const prod = db.productos.find((p) => p.id_producto === Number(id_producto));
-      if (prod) {
-        prod.stock = Math.max(0, prod.stock - cantNum);
-      }
-    }
-
-    const totalNum = Number(total) || 50000;
-    const abonoNum = Number(abonoInicial) || 0;
-    const initials = cliente.trim().substring(0, 2).toUpperCase() || 'SP';
-
-    const nuevoSeparado = {
-      id: folio,
-      id_separado: newIdNum,
-      cliente: cliente.trim(),
-      avatar: initials,
-      telefono: telefono.trim(),
-      documento: documento?.trim() || '',
-      id_producto: id_producto ? Number(id_producto) : null,
-      producto: producto.trim(),
-      cantidad: cantNum,
-      total: totalNum,
-      abonado: abonoNum,
-      fechaCreacion: new Date().toLocaleDateString('es-CO'),
-      fechaLimite: fechaLimite || '30 días',
-      estado: abonoNum >= totalNum ? 'Liquidado' : 'En Curso',
-      notas: notas || '',
-      historialAbonos: abonoNum > 0 ? [
-        {
-          fecha: new Date().toLocaleDateString('es-CO') + ' ' + new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }),
-          monto: abonoNum,
-          metodo: metodoPago
-        }
-      ] : []
-    };
-
-    db.separados.unshift(nuevoSeparado);
-    saveDatabase(db);
-    return ok({ ok: true, message: 'Separado registrado con éxito', separado: nuevoSeparado });
-  }
-
-  const matchSeparadoAbono = path.match(/^\/separados\/([^/]+)\/abono$/);
-  if (matchSeparadoAbono && m === 'PATCH') {
-    const id = matchSeparadoAbono[1];
-    const sep = (db.separados || []).find((s) => s.id === id || String(s.id_separado) === id);
-    if (sep) {
-      const monto = Number(body.monto) || 0;
-      sep.abonado += monto;
-      if (!sep.historialAbonos) sep.historialAbonos = [];
-      sep.historialAbonos.push({
-        fecha: new Date().toLocaleDateString('es-CO') + ' ' + new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }),
-        monto,
-        metodo: body.metodo || 'Efectivo'
-      });
-      if (sep.abonado >= sep.total) {
-        sep.estado = 'Liquidado';
-      }
-      saveDatabase(db);
-    }
-    return ok({ message: 'Abono registrado con éxito', separado: sep });
-  }
-
-  const matchSeparado = path.match(/^\/separados\/([^/]+)$/);
-  if (matchSeparado && m === 'DELETE') {
-    const id = matchSeparado[1];
-    db.separados = (db.separados || []).filter((s) => s.id !== id && String(s.id_separado) !== id);
-    saveDatabase(db);
-    return ok({ message: 'Separado eliminado con éxito' });
   }
 
   // Fallback si la ruta no coincide

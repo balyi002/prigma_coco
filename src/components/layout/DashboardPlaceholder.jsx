@@ -28,7 +28,7 @@ export default function Dashboard() {
       color: 'bg-secondary/40 text-secondary-foreground border-border'
     },
     {
-      title: 'Separados / Pedidos Activos',
+      title: 'Pedidos Pendientes',
       value: '4',
       change: '2 por liquidar',
       isPositive: true,

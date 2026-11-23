@@ -18,8 +18,7 @@ import {
   LogOut,
   Sun,
   Moon,
-  ChevronDown,
-  BookmarkCheck // <--- Ícono agregado para Separados
+  ChevronDown
 } from 'lucide-react';
 
 export default function Sidebar({
@@ -70,7 +69,6 @@ export default function Sidebar({
       icon: DollarSign,
       items: [
         { id: 'sales', label: 'Ventas', icon: BookOpen },
-        { id: 'separados', label: 'Gestión de Separados', icon: BookmarkCheck },
         { id: 'orders', label: 'Pedidos', icon: FileText },
         { id: 'clients', label: 'Clientes', icon: Users }
       ]

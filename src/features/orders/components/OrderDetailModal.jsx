@@ -143,15 +143,45 @@ export default function OrderDetailModal({ open, onClose, order }) {
           </div>
           <div className="flex justify-between text-xs text-muted-foreground pt-1">
             <span>Total Abonado:</span>
-            <span className="font-mono font-bold text-foreground">{formatCOP(order.abonado || 0)}</span>
+            <span className="font-mono font-bold text-foreground">
+              {formatCOP(order.abonado ?? order.abono ?? 0)}
+            </span>
           </div>
-          {Number(order.saldo || 0) > 0 && (
-            <div className="flex justify-between text-xs font-bold text-amber-600">
+          {Number(order.saldo ?? order.saldo_pendiente ?? 0) > 0 ? (
+            <div className="flex justify-between text-xs font-bold text-amber-600 dark:text-amber-400">
+              <span>Saldo Pendiente por Pagar:</span>
+              <span className="font-mono">{formatCOP(order.saldo ?? order.saldo_pendiente ?? 0)}</span>
+            </div>
+          ) : (
+            <div className="flex justify-between text-xs font-bold text-emerald-600 dark:text-emerald-400">
               <span>Saldo Pendiente:</span>
-              <span className="font-mono">{formatCOP(order.saldo)}</span>
+              <span className="font-mono">¡Totalmente Pagado! ($ 0)</span>
             </div>
           )}
         </div>
+
+        {/* Historial de Pagos y Abonos Registrados */}
+        {details.pagos && details.pagos.length > 0 && (
+          <div className="border border-border rounded-xl p-3.5 space-y-2 bg-muted/20 text-xs">
+            <span className="font-bold text-foreground block text-[11px] uppercase tracking-wider">
+              Historial de Pagos y Abonos (pagos_pedido)
+            </span>
+            <div className="space-y-1.5 max-h-32 overflow-y-auto">
+              {details.pagos.map((p, idx) => (
+                <div key={idx} className="flex justify-between items-center bg-card p-2 rounded-lg border border-border">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                    <span className="font-mono text-muted-foreground text-[11px]">{p.fecha}</span>
+                    <span className="text-muted-foreground text-[10px]">({p.metodo || 'Efectivo'})</span>
+                  </div>
+                  <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                    +{formatCOP(p.monto)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Botones de acción */}
         <div className="flex justify-between gap-3 pt-3 border-t border-border">

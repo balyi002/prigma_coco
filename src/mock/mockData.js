@@ -562,8 +562,8 @@ export const INITIAL_MOCK_DATA = {
       saldo_pendiente: 64000,
       abono: 50000,
       metodo_pago: 'Transferencia',
-      id_estado: 2,
-      nombre_estado: 'Pendiente',
+      id_estado: 1,
+      nombre_estado: 'Apartado',
       detalles: {
         productos: [
           { id_producto: 8, nombre_producto: 'Cartuchera Doble Compartimiento Carito', cantidad: 2, precio_unitario: 25000, subtotal: 50000 },
@@ -652,68 +652,30 @@ export const INITIAL_MOCK_DATA = {
         servicios: [],
         pagos: []
       }
-    }
-  ],
-
-  separados: [
-    {
-      id: 'SEP001',
-      id_separado: 1,
-      cliente: 'Carlos Valencia',
-      avatar: 'CV',
-      telefono: '312-456-7890',
-      documento: '1098234567',
-      id_producto: 8,
-      producto: 'Cartuchera Doble Compartimiento Carito',
-      cantidad: 2,
-      total: 50000,
-      abonado: 30000,
-      fechaCreacion: '05/11/2026',
-      fechaLimite: '20/11/2026',
-      estado: 'En Curso',
-      historialAbonos: [
-        { fecha: '05/11/2026 10:15', monto: 20000, metodo: 'Efectivo' },
-        { fecha: '12/11/2026 16:30', monto: 10000, metodo: 'Transferencia' }
-      ]
     },
     {
-      id: 'SEP002',
-      id_separado: 2,
-      cliente: 'Lucía Fernández',
-      avatar: 'LF',
-      telefono: '315-998-1122',
-      documento: '1023456789',
-      id_producto: 10,
-      producto: 'Calculadora Científica Casio fx-82MS',
-      cantidad: 1,
+      id_pedido: 6,
+      id_cliente: 3,
+      nombre_cliente: 'Lucía Fernández Ramos',
+      cedula_cliente: '1023456789',
+      telefono_cliente: '315-998-1122',
+      fecha_pedido: '2026-11-17T10:45:00.000Z',
       total: 65000,
-      abonado: 35000,
-      fechaCreacion: '01/11/2026',
-      fechaLimite: '18/11/2026',
-      estado: 'En Curso',
-      historialAbonos: [
-        { fecha: '01/11/2026 11:00', monto: 35000, metodo: 'Efectivo' }
-      ]
-    },
-    {
-      id: 'SEP003',
-      id_separado: 3,
-      cliente: 'Andrés Gómez',
-      avatar: 'AG',
-      telefono: '300-112-3344',
-      documento: '1034567890',
-      id_producto: 7,
-      producto: 'Caja Colores x24 Norma Doble Punta',
-      cantidad: 2,
-      total: 64000,
-      abonado: 64000,
-      fechaCreacion: '28/10/2026',
-      fechaLimite: '10/11/2026',
-      estado: 'Liquidado',
-      historialAbonos: [
-        { fecha: '28/10/2026 15:00', monto: 32000, metodo: 'Efectivo' },
-        { fecha: '08/11/2026 09:40', monto: 32000, metodo: 'Transferencia' }
-      ]
+      iva_incluido: 10378,
+      saldo_pendiente: 30000,
+      abono: 35000,
+      metodo_pago: 'Efectivo',
+      id_estado: 1,
+      nombre_estado: 'Apartado',
+      detalles: {
+        productos: [
+          { id_producto: 10, nombre_producto: 'Calculadora Científica Casio fx-82MS', cantidad: 1, precio_unitario: 65000, subtotal: 65000 }
+        ],
+        servicios: [],
+        pagos: [
+          { fecha: '2026-11-17 10:45', monto: 35000, metodo: 'Efectivo' }
+        ]
+      }
     }
   ],
 

@@ -48,6 +48,11 @@ export const orderService = {
     return res.data;
   },
 
+  addPaymentToOrder: async (id, paymentData) => {
+    const res = await api.post(`/pedidos/${id}/abonos`, paymentData);
+    return res.data;
+  },
+
   completeOrder: async (id, payload = {}) => {
     const res = await api.patch(`/pedidos/${id}/completar`, payload);
     return res.data;
